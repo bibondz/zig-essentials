@@ -1,11 +1,42 @@
+# Zig build artifacts
 zig-cache/
-zig-out/
 .zig-cache/
+zig-out/
+
+# Object files + executables
 *.o
 *.obj
 *.exe
+*.dll
+*.so
+*.dylib
+
+# Windows debug
+*.pdb
+*.ilk
+
+# Core dumps
+core
+core.*
+
+# Temp files (incident-proof)
+*.tmp
+COMMIT_EDITMSG.tmp
+
+# OS cruft
 .DS_Store
+Thumbs.db
+
+# Editor / IDE
 .idea/
 .vscode/
-COMMIT_EDITMSG.tmp
-*.tmp
+*~
+*.swp
+*.swo
+
+# Env / secrets (in case any are used)
+.env
+.env.*
+
+# Logs
+*.log

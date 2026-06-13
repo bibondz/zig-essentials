@@ -1,7 +1,5 @@
-//! RED tests for `cli` parser.
-//!
-//! All tests in this file are expected to FAIL until the impl lands.
-//! Run: `cd cli && zig build test` (after fingerprint is set).
+//! Tests for `cli` parser.
+//! All tests should be GREEN now (impl is in src/cli.zig).
 
 const std = @import("std");
 const testing = std.testing;
@@ -9,7 +7,6 @@ const cli = @import("cli.zig");
 
 // ---------- Test fixtures ----------
 
-/// Standard test args used by most tests.
 const TestArgs = struct {
     verbose: bool = false,
     output: []const u8 = "",
@@ -27,7 +24,6 @@ const test_schema: cli.Schema = .{
     },
 };
 
-// Variant with optional positional + many, for testing those.
 const ManyArgs = struct {
     name: []const u8 = "default",
     files: []const u8 = "",
@@ -43,53 +39,59 @@ const many_schema: cli.Schema = .{
 
 // ---------- Success cases ----------
 
-test "empty argv uses all defaults" {
-    const argv = [_][]const u8{"test"};
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+test "no flags = flag defaults" {
+    // Required positional `file` must be provided; flag defaults still apply
+    const argv = [_][]const u8{ "test", "input.txt" };
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqual(false, args.verbose);
     try testing.expectEqualStrings("", args.output);
-    try testing.expectEqualStrings("", args.file);
+    try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "--verbose sets flag to true" {
-    const argv = [_][]const u8{ "test", "--verbose" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const argv = [_][]const u8{ "test", "--verbose", "input.txt" };
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqual(true, args.verbose);
+    try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "-v is short form of --verbose" {
-    const argv = [_][]const u8{ "test", "-v" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const argv = [_][]const u8{ "test", "-v", "input.txt" };
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqual(true, args.verbose);
+    try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "--output=foo sets option via equals" {
-    const argv = [_][]const u8{ "test", "--output=foo" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const argv = [_][]const u8{ "test", "--output=foo", "input.txt" };
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqualStrings("foo", args.output);
+    try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "--output foo sets option via space" {
-    const argv = [_][]const u8{ "test", "--output", "foo" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const argv = [_][]const u8{ "test", "--output", "foo", "input.txt" };
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqualStrings("foo", args.output);
+    try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "-o short option with space" {
-    const argv = [_][]const u8{ "test", "-o", "foo" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const argv = [_][]const u8{ "test", "-o", "foo", "input.txt" };
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqualStrings("foo", args.output);
+    try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "positional file at end" {
     const argv = [_][]const u8{ "test", "input.txt" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqualStrings("input.txt", args.file);
 }
 
 test "all combined: flag + option + positional" {
     const argv = [_][]const u8{ "test", "-v", "-o", "out.txt", "input.txt" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqual(true, args.verbose);
     try testing.expectEqualStrings("out.txt", args.output);
     try testing.expectEqualStrings("input.txt", args.file);
@@ -97,7 +99,7 @@ test "all combined: flag + option + positional" {
 
 test "all combined in different order" {
     const argv = [_][]const u8{ "test", "input.txt", "-v", "--output=out.txt" };
-    const args = try cli.parse(TestArgs, test_schema, &argv);
+    const args = try cli.parse(TestArgs, test_schema, testing.allocator, &argv);
     try testing.expectEqual(true, args.verbose);
     try testing.expectEqualStrings("out.txt", args.output);
     try testing.expectEqualStrings("input.txt", args.file);
@@ -105,50 +107,55 @@ test "all combined in different order" {
 
 test "optional positional not provided" {
     const argv = [_][]const u8{"many"};
-    const args = try cli.parse(ManyArgs, many_schema, &argv);
+    const args = try cli.parse(ManyArgs, many_schema, testing.allocator, &argv);
     try testing.expectEqualStrings("default", args.name);
     try testing.expectEqualStrings("", args.files);
 }
 
-test "many positional collects multiple values" {
+test "many positional collects multiple values (comma-joined)" {
+    // many_schema has 2 positionals: `name` (not many, not required) and `files` (many)
+    // "a.txt" fills `name`; "b.txt", "c.txt" go to `files` (many, comma-joined)
+    // Use a real arena so allocations are freed when test ends
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
     const argv = [_][]const u8{ "many", "a.txt", "b.txt", "c.txt" };
-    const args = try cli.parse(ManyArgs, many_schema, &argv);
+    const args = try cli.parse(ManyArgs, many_schema, arena.allocator(), &argv);
     try testing.expectEqualStrings("a.txt", args.name);
-    try testing.expectEqualStrings("a.txt,b.txt,c.txt", args.files);
+    try testing.expectEqualStrings("b.txt,c.txt", args.files);
 }
 
 // ---------- Error cases ----------
 
 test "unknown long flag → UnknownFlag" {
     const argv = [_][]const u8{ "test", "--unknown" };
-    try testing.expectError(cli.ParseError.UnknownFlag, cli.parse(TestArgs, test_schema, &argv));
+    try testing.expectError(cli.ParseError.UnknownFlag, cli.parse(TestArgs, test_schema, testing.allocator, &argv));
 }
 
 test "unknown short flag → UnknownFlag" {
     const argv = [_][]const u8{ "test", "-x" };
-    try testing.expectError(cli.ParseError.UnknownFlag, cli.parse(TestArgs, test_schema, &argv));
+    try testing.expectError(cli.ParseError.UnknownFlag, cli.parse(TestArgs, test_schema, testing.allocator, &argv));
 }
 
 test "missing required positional → MissingPositional" {
     const argv = [_][]const u8{ "test", "-v" };
-    try testing.expectError(cli.ParseError.MissingPositional, cli.parse(TestArgs, test_schema, &argv));
+    try testing.expectError(cli.ParseError.MissingPositional, cli.parse(TestArgs, test_schema, testing.allocator, &argv));
 }
 
 test "too many positionals → TooManyPositionals" {
     const argv = [_][]const u8{ "test", "a", "b" }; // schema has only 1 positional
-    try testing.expectError(cli.ParseError.TooManyPositionals, cli.parse(TestArgs, test_schema, &argv));
+    try testing.expectError(cli.ParseError.TooManyPositionals, cli.parse(TestArgs, test_schema, testing.allocator, &argv));
 }
 
 test "option at end of argv with no value → MissingValue" {
     const argv = [_][]const u8{ "test", "--output" };
-    try testing.expectError(cli.ParseError.MissingValue, cli.parse(TestArgs, test_schema, &argv));
+    try testing.expectError(cli.ParseError.MissingValue, cli.parse(TestArgs, test_schema, testing.allocator, &argv));
 }
 
 // ---------- Help / version ----------
 
 test "--help returns HelpRequested" {
     const argv = [_][]const u8{ "test", "--help" };
-    try testing.expectError(cli.ParseError.HelpRequested, cli.parse(TestArgs, test_schema, &argv));
+    try testing.expectError(cli.ParseError.HelpRequested, cli.parse(TestArgs, test_schema, testing.allocator, &argv));
 }
 
 test "--version returns VersionRequested when schema has version" {
@@ -159,5 +166,5 @@ test "--version returns VersionRequested when schema has version" {
         .positionals = &[_]cli.Positional{},
     };
     const argv = [_][]const u8{ "test", "--version" };
-    try testing.expectError(cli.ParseError.VersionRequested, cli.parse(TestArgs, versioned, &argv));
+    try testing.expectError(cli.ParseError.VersionRequested, cli.parse(TestArgs, versioned, testing.allocator, &argv));
 }
