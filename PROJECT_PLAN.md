@@ -101,6 +101,7 @@ These are rules for any future contributor (including the maintainer):
 - **Public API change** = new function OR major version bump (no in-place edits)
 - **Changelog entry required** for every release
 - **LLM-generated code:** not accepted (aligns with Zig org policy on Codeberg)
+  *Note: This is our own policy, independent of where we host. The hosting choice (GitHub in our case) is orthogonal.*
 - **Code review** by human maintainer before merge
 
 ## 8. Roadmap
@@ -136,7 +137,7 @@ See `ZIG_STD_LIB_AUDIT.md` for the 9 verified gaps in Zig 0.17 std.
 - **Maintainer:** single (the project owner)
 - **PR policy:** open to community, **human-authored only** (no LLM)
 - **Issue policy:** bug reports + clear feature requests welcome
-- **Codeberg first** (aligns with Zig org's own migration)
+- **Hosting (canonical):** `github.com/bibondz/zig-essentials`
 
 ## 11. Why "essentials"
 
@@ -240,5 +241,5 @@ When a new Zig release ships that we don't immediately adopt as a new LTS:
 
 ### 13.6 Distribution
 
-Initial release: Codeberg git tags + Codeberg Packages (zig package registry, when available).
+Initial release: GitHub (`github.com/bibondz/zig-essentials`) + git tags.
 Long-term: consider official `zig` package index inclusion, but only after the API has been stable for 1+ year.
