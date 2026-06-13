@@ -4,7 +4,11 @@ Per-package changelogs live in `<package>/CHANGELOG.md`. This file is the **cros
 
 Format: [Keep a Changelog](https://keepachangelog.com)
 
-## [0.1.0] - 2026-06-13 — first stable releases
+## [unreleased] - 2026-06-13
+
+### Added
+- `toml` v0.1.0 (TOML 1.0 parser; 24/24 tests)
+- `log` v0.1.0-dev design + 15 RED tests (impl in next session)
 
 ### Released
 - `uuid` v0.1.0 (RFC 4122/9562 v4 + v7At, parse, format; 23/23 tests)
@@ -22,10 +26,5 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 - Zig 0.16.0 stable (LTS-0.16)
 - Windows x86_64 (cross-OS testing pending CI)
 
-## [unreleased] - 2026-06-13
-
-### Added
-- `toml` v0.1.0-dev design + 24 RED tests (impl in next session)
-
 ### Planned
-- `log`, `regex`, `websocket`, `watcher`, `tracing` (per PROJECT_PLAN.md §8)
+- `regex`, `websocket`, `watcher`, `tracing` (per PROJECT_PLAN.md §8)
