@@ -22,5 +22,10 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 - Zig 0.16.0 stable (LTS-0.16)
 - Windows x86_64 (cross-OS testing pending CI)
 
+## [unreleased] - 2026-06-13
+
+### Added
+- `toml` v0.1.0-dev design + 24 RED tests (impl in next session)
+
 ### Planned
-- `toml`, `log`, `regex`, `websocket`, `watcher`, `tracing` (per PROJECT_PLAN.md §8)
+- `log`, `regex`, `websocket`, `watcher`, `tracing` (per PROJECT_PLAN.md §8)
