@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 ### Added
 - `CONTRIBUTING.md`: TDD, no LLM, public API change policy, commit format
 - `SECURITY.md`: reporting process, severity, disclosure, supported versions
+- `cli` v0.1.0-dev design + 18 RED tests (impl deferred to next session)
 
 ### Removed
 - `D:/acko/zig-current/` (307 MB, was unused 0.17-dev checkout, now deleted)
