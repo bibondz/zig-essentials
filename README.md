@@ -11,8 +11,9 @@ Stable, explicit, minimal Zig libraries that should be in `std` but aren't.
 
 | Lib | Version | Status |
 |---|---|---|
-| `uuid` | v0.1.0-dev | in progress |
-| `cli`, `toml`, `log`, `regex`, `websocket`, `watcher`, `tracing` | — | planned |
+| `uuid` | v0.1.0 | ✅ first stable |
+| `cli` | v0.1.0 | ✅ first stable |
+| `toml`, `log`, `regex`, `websocket`, `watcher`, `tracing` | — | planned |
 
 ## LTS
 

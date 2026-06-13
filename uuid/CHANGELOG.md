@@ -2,7 +2,9 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com)
 
-## [0.1.0-dev] — unreleased
+## [0.1.0] - 2026-06-13
+
+First stable release. API frozen.
 
 ### Added
 - `Uuid.v4(r: Random)` — random v4 UUID
@@ -15,11 +17,9 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 - `ParseError` set: `InvalidLength`, `InvalidHex`, `InvalidVersion`, `InvalidVariant`
 - Test coverage (23 tests): v4/v7 bit setting, uniqueness (1000 ids), timestamp encoding, accessor correctness, parse canonical/uppercase/compact, format roundtrips, all error paths, zero-UUID behavior
 
-### Removed
-- `Uuid.v7(r: Random)` — Zig 0.16 has no `std.time.milliTimestamp`. Use `v7At` with your own timestamp from `Io.Clock.now` or `std.posix.clock_gettime`
-
 ### Notes
 - API frozen at this version. No breaking changes until 1.0.0
-- format() uses `anytype` writer for compatibility with both legacy `*std.io.Writer` and new `*std.Io.Writer`
+- `format()` uses `anytype` writer for compatibility with both legacy `*std.io.Writer` and new `*std.Io.Writer`
 - The all-zero UUID (nil) parses as `InvalidVariant` — historically called "nil UUID" but not RFC 4122 compliant
 - Verified on Zig 0.16.0 / Windows x86_64. Cross-OS testing pending (CI to be set up)
+- `v7(r)` (no-arg) was removed; Zig 0.16 has no `std.time.milliTimestamp`. Use `v7At` with your own timestamp from `Io.Clock.now` or `std.posix.clock_gettime`

@@ -1,7 +1,6 @@
 # `cli` — struct-based CLI argument parser
 
-> **Status:** v0.1.0-dev (TDD RED — impl in next session)
-> 18/18 tests failing by design until impl lands
+> **Status:** v0.1.0 (first stable release) — API frozen. 18/18 tests pass on Zig 0.16.0.
 
 Fills the gap in std: `process/Args.zig` has `iterate()` + `IteratorGeneral` (string splitter), but **no flag/subcommand/positional parser**. Verified via `ZIG_STD_LIB_AUDIT.md`.
 

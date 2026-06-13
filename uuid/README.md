@@ -4,7 +4,7 @@ Stable, minimal, explicit UUID library. Fills the gap in Zig `std` (verified via
 
 ## Status
 
-**v0.1.0-dev** — in progress. v4 + v7 constructors and accessors are implemented. `parse` / `format` are stubbed (TODO).
+**v0.1.0** — first stable release. API frozen. 23/23 tests pass on Zig 0.16.0.
 
 ## What you get
 
@@ -26,8 +26,8 @@ _ = id_a.version();      // .v4
 _ = id_a.isRfc4122();    // true
 ```
 
-> **Note:** example uses `Uuid.format` which is currently stubbed (TODO). Use
-> `id_a.bytes` directly or implement format per your writer preference.
+> **Note:** example uses `Uuid.format` which writes to a `std.Io.Writer`. For
+> `*std.io.Writer` (legacy), wrap with `bufferedWriter`.
 
 ## API surface (frozen at 0.1.0)
 
@@ -36,8 +36,8 @@ _ = id_a.isRfc4122();    // true
 | `Uuid.v4(r: Random)` | ✅ | CSPRNG required |
 | `Uuid.v7(r: Random)` | ❌ removed | Use `v7At` with your own timestamp (Zig 0.16 removed `std.time.milliTimestamp`) |
 | `Uuid.v7At(r: Random, ts_ms: u64)` | ✅ | Explicit timestamp — caller chooses clock source |
-| `Uuid.parse(s: []const u8)` | 🔜 stub | TODO in 0.1.0 |
-| `Uuid.format(self, w: anytype)` | 🔜 stub | TODO in 0.1.0 |
+| `Uuid.parse(s: []const u8) ParseError!Uuid` | ✅ | Canonical 8-4-4-4-12 or compact 32-hex, case-insensitive |
+| `Uuid.format(self, w: anytype) !void` | ✅ | Writer-compatible (`*std.io.Writer` or `*std.Io.Writer`) |
 | `Uuid.version() -> Version` | ✅ | |
 | `Uuid.isRfc4122() -> bool` | ✅ | |
 
