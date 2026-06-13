@@ -2,20 +2,32 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com)
 
-## [0.1.0-dev] — unreleased
+## [0.1.0] - 2026-06-13
+
+First stable release. API frozen.
 
 ### Added
-- Design: parse TOML 1.0 text into dynamic `Value` tree
-- Type definitions: `Value` (tagged union), `Value.Table`, `Value.Table.Entry`
-- Public API: `parse(arena, source)`, `get`, `getString`/`getInt`/`getFloat`/`getBool`/`getTable`/`getArray`, `getPath`
+- `parse(arena, source) ParseError!Value` — full TOML 1.0 parser
+- `Value` tagged union: `string`, `integer`, `float`, `boolean`, `datetime`, `array`, `table: *Table`
+- `Value.Table` struct (key-value entries, preserving source order)
+- `Value.Table.Entry` struct
 - `ParseError` set: `InvalidSyntax`, `UnterminatedString`, `InvalidNumber`, `InvalidDatetime`, `DuplicateKey`, `EmptyKey`, `OutOfMemory`
-- Stub impl (returns `ParseError.InvalidSyntax`) so tests can be RED
-- 24 RED tests covering: 11 basic types, 3 arrays, 6 tables, 4 errors
-- README with design doc + scope matrix + out-of-scope list
+- `get`, `getString`, `getInt`, `getFloat`, `getBool`, `getTable`, `getArray`, `getPath`
+- String parsing: basic `"..."`, literal `'...'`, multi-line `"""..."""`
+- Number parsing: integer, float, scientific notation, `inf`/`-inf`/`nan`, underscores
+- Datetime parsing (stored as RFC 3339 string in v0.1.0)
+- Tables: regular `[name]`, inline `{...}`, nested via dotted keys
+- Array of tables: `[[name]]`
+- Quoted keys: `"key with spaces" = ...`
+- Comments (`#`) ignored
+- 24 tests covering all of the above
 
-### Pending (next session)
-- `parse()` impl — TDD: GREEN all 24 tests
-- After GREEN: refactor (TDD step 3)
+### Notes
+- `Value.table` is a `*Table` pointer (stable address for navigation)
+- All accessors take `*const Value.Table` — pass `v.table` directly
+- Datetime uses `.datetime` variant (not `.string`) — access via `get(...).?.datetime`
+- Arena ownership: caller manages lifetime
+- API frozen at this version. No breaking changes until 1.0.0
 
 ### Deferred to v0.2.0
 - Serialize / round-trip preservation
