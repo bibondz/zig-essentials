@@ -165,3 +165,80 @@ See `ZIG_STD_LIB_AUDIT.md` §6 ("How to refresh this audit") for the full workfl
 TL;DR: use the installed std lib (no git clone), re-index 13 files into KB with new version label, re-verify 8 gaps, update doc. If a gap is now filled by std → deprecate the lib in essentials.
 
 **The audit is a living document, not a snapshot.** It must be re-verified on every LTS bump.
+
+## 13. Release process
+
+### 13.1 When to release
+
+A package is ready for a new release when:
+- All intended features are merged on `main`
+- All tests pass on the pinned LTS Zig version
+- `CHANGELOG.md` has an entry for the new version
+- `build.zig.zon` `.version` is bumped
+- API surface is frozen (no further changes expected)
+
+For `uuid` specifically: a release means moving from `0.1.0-dev` to `0.1.0` (first stable).
+
+### 13.2 Bump protocol
+
+| Change | Version bump | Example |
+|---|---|---|
+| Bug fix, internal refactor | patch (0.0.X) | `0.1.0` → `0.1.1` |
+| New function added, no breaking | minor (0.X.0) | `0.1.0` → `0.2.0` |
+| Deprecate (no remove) | minor | `0.1.0` → `0.2.0` |
+| Remove deprecated function | major (X.0.0) | `0.9.0` → `1.0.0` |
+| Change function signature | major | `0.9.0` → `1.0.0` |
+| Change behavior of existing function | major (rare) | `0.9.0` → `1.0.0` |
+
+### 13.3 Release steps
+
+For each package being released:
+
+```bash
+# 1. Make sure main is green
+cd <package>
+zig build test --summary all
+
+# 2. Bump version in build.zig.zon
+#    Edit .version = "0.X.Y" (manually for now)
+
+# 3. Update CHANGELOG.md
+#    - Move entry from "unreleased" to versioned section
+#    - Add release date
+#    - Add comparison link at the bottom
+
+# 4. Commit the release
+git add <package>/build.zig.zon <package>/CHANGELOG.md
+git commit -m "<package>: release v0.X.Y"
+
+# 5. Tag it
+git tag -a <package>-v0.X.Y -m "<package> v0.X.Y"
+# (optional: also a monorepo-wide tag like v0.X.Y if releasing all)
+
+# 6. Push (after CI passes)
+git push origin main
+git push origin <package>-v0.X.Y
+```
+
+### 13.4 Pre-1.0 caveats
+
+Until a package reaches `1.0.0`:
+- Minor version bumps **may** include breaking changes (deprecation cycle still required)
+- The "API frozen at 0.1.0" rule from §3.3 applies **only after first stable release**
+- We encourage reaching `1.0.0` quickly to lock the API
+
+The first `1.0.0` of a lib is a major event — it signals "this is the API users can rely on for years."
+
+### 13.5 EOL policy
+
+When a new Zig release ships that we don't immediately adopt as a new LTS:
+- Old LTS series continues to receive security fixes
+- No new features for old LTS
+- Old LTS enters EOL when:
+  - New Zig version is 1 minor version ahead (e.g. we have LTS-0.16, 0.17 ships → LTS-0.16 enters EOL 6 months after 0.17 stable)
+  - Or the maintainer is no longer able to support it
+
+### 13.6 Distribution
+
+Initial release: Codeberg git tags + Codeberg Packages (zig package registry, when available).
+Long-term: consider official `zig` package index inclusion, but only after the API has been stable for 1+ year.
