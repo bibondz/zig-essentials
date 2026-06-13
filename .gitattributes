@@ -1,0 +1,20 @@
+# Auto-detect text files
+* text=auto eol=lf
+
+# Zig source: always LF
+*.zig text eol=lf
+*.zon text eol=lf
+
+# Markdown: LF
+*.md text eol=lf
+
+# YAML: LF
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Shell: LF
+*.sh text eol=lf
+
+# Windows shell: CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
