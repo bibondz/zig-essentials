@@ -33,58 +33,154 @@ const Allocator = mem.Allocator;
 
 // ---------- Public types ----------
 
+/// Discriminator for what an `Opt` accepts on the command line.
 pub const Kind = enum {
+    /// Boolean flag. `--verbose` → true. `--verbose=false` → false.
+    /// Combinable with other flags in short form: `-vfd` sets all three to true.
     flag,
+    /// Single string value. `--output=foo`, `--output foo`, `-o foo`, or `-ofoo`.
     option,
+    /// String value that replaces any prior value. (Accumulation across
+    /// multiple uses is not yet supported in v0.1.0 — last value wins.)
+    /// Planned: comma-join accumulation in v0.2.0.
     option_list,
 };
 
+/// Declaration of one long/short flag. Compile-time literal in `Schema`.
+///
+/// The `name` field must match a field on the user's `T` struct (verified at
+/// compile time via `@hasField`).
 pub const Opt = struct {
+    /// Long name without `--`, e.g. `"verbose"`. Must match a field on `T`.
     name: []const u8,
+    /// Optional short letter, e.g. `'v'`. Conflicts with other opts' shorts
+    /// in the same schema are not validated — duplicate shorts will cause
+    /// only the first match to be applied.
     short: ?u8 = null,
+    /// What kind of value this opt accepts.
     kind: Kind,
+    /// Help text shown in `--help` output. v0.1.0 doesn't auto-generate help
+    /// (caller prints schema manually on `HelpRequested`).
     help: []const u8 = "",
+    /// Default value as string, used for `kind = .option` when the flag
+    /// isn't provided on the command line. v0.1.0: documented but not yet
+    /// applied — use `T`'s field default instead.
     default: ?[]const u8 = null,
 };
 
+/// Declaration of one positional argument.
+///
+/// In v0.1.0, the `name` field must match a field on the user's `T` struct
+/// (verified at compile time). The field type is `[]const u8` — for `many`,
+/// multiple values are joined with `,` into a single string.
 pub const Positional = struct {
+    /// Name used in help text and as the field name on `T`.
     name: []const u8,
+    /// Whether this positional is required. Default: `true`.
+    /// For `many = true`, `required` is ignored (0+ values are always accepted).
     required: bool = true,
+    /// Accept multiple values, comma-joined into a single string. Default: `false`.
+    /// Memory for the joined string comes from the `arena` passed to `parse()`.
     many: bool = false,
+    /// Help text shown in `--help` output.
     help: []const u8 = "",
 };
 
+/// Top-level schema (comptime literal). Describes the entire CLI surface.
+///
+/// Build it as a struct literal and pass to `parse()`:
+/// ```
+/// const schema: Schema = .{
+///     .name = "mytool",
+///     .version = "1.0.0",
+///     .opts = &.{ ... },
+///     .positionals = &.{ ... },
+/// };
+/// ```
 pub const Schema = struct {
+    /// Program name (used in help text and error messages).
     name: []const u8,
+    /// Version string. If non-null, `--version` is recognized and returns
+    /// `VersionRequested` so the caller can print it and exit.
     version: ?[]const u8 = null,
+    /// One-line description. v0.1.0: not auto-rendered; caller uses it in their help.
     about: []const u8 = "",
+    /// Extended description. v0.1.0: not auto-rendered; caller uses it in their help.
     long_help: []const u8 = "",
+    /// All long/short flag declarations.
     opts: []const Opt = &.{},
+    /// All positional declarations.
     positionals: []const Positional = &.{},
 };
 
 // ---------- Error set ----------
 
+/// Errors that `parse()` may return. Note: `HelpRequested` and `VersionRequested`
+/// are not really errors — they're signals for the caller to print and exit 0.
 pub const ParseError = error{
+    /// A flag was passed that doesn't match any declared opt.
     UnknownFlag,
+    /// An option (`--name`) was at the end of argv with no value following.
     MissingValue,
+    /// A required positional was not provided.
     MissingPositional,
+    /// More positionals were provided than declared.
     TooManyPositionals,
+    /// A flag value couldn't be coerced (currently only used for `--flag=xyz`
+    /// where xyz is not true/false/0/1).
     InvalidValue,
+    /// `--help` or `-h` was passed. Caller should print help and exit 0.
     HelpRequested,
+    /// `--version` was passed (only if `schema.version` is set). Caller should
+    /// print the version and exit 0.
     VersionRequested,
+    /// Arena allocation failed (e.g., out of memory while joining `many` values).
     OutOfMemory,
 };
 
 // ---------- Public API ----------
 
-/// Parse `argv` (with program name as argv[0]) into a struct of type `T`.
+/// Parse `argv` (with program name as `argv[0]`) into a struct of type `T`.
 ///
-/// `T` must have a field for every opt + positional in `schema` (compile-time
-/// check via `@hasField`). Default values come from `T`'s field defaults.
+/// **Type contract:** `T` must have a field for every opt + positional in
+/// `schema` (compile-time check via `@hasField`). A missing field is a
+/// `@compileError`, not a runtime error. Default values come from `T`'s
+/// field defaults — use them instead of `Opt.default` in v0.1.0.
 ///
-/// `arena` is used for any allocations (currently: comma-join for `many`
-/// positionals). The returned `T` may contain slices backed by `arena`.
+/// **Memory:** `arena` is used for any allocations (currently: comma-join
+/// for `many` positionals). Slices in the returned `T` may point into `arena`.
+/// Pass any `Allocator`; for tests use `std.testing.allocator` wrapped in
+/// an `ArenaAllocator` so the joined strings get freed.
+///
+/// **Behavior on special args:**
+/// - `--help` / `-h` → returns `HelpRequested`. Caller prints help + exits 0.
+/// - `--version` → returns `VersionRequested` if `schema.version != null`.
+///   Otherwise returns `UnknownFlag`.
+///
+/// **Long forms:** `--name`, `--name=value`
+/// **Short forms:** `-n`, `-n value`, `-nvalue`, `-vfd` (combined bools)
+///
+/// **Positionals:** matched in order. Excess → `TooManyPositionals`.
+/// Missing required → `MissingPositional`.
+///
+/// Example:
+/// ```
+/// const Args = struct {
+///     verbose: bool = false,
+///     output: []const u8 = "",
+///     file: []const u8 = "",
+/// };
+/// var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+/// defer arena.deinit();
+/// const args = try cli.parse(Args, .{
+///     .name = "mytool",
+///     .opts = &.{
+///         .{ .name = "verbose", .short = 'v', .kind = .flag },
+///         .{ .name = "output", .short = 'o', .kind = .option },
+///     },
+///     .positionals = &.{ .{ .name = "file" } },
+/// }, arena.allocator(), std.os.argv);
+/// ```
 pub fn parse(
     comptime T: type,
     comptime schema: Schema,
