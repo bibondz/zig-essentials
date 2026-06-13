@@ -143,3 +143,25 @@ See `ZIG_STD_LIB_AUDIT.md` for the 9 verified gaps in Zig 0.17 std.
 The name says it: these are things that *should* be in std. We don't aim to be a kitchen-sink collection like Rust's `tokio` or Go's `x/...`. We aim to fill exactly the gaps in `lib/std` — and stop.
 
 If a future Zig release includes one of our libs in std, we **deprecate ours** and point users to std. We don't fight upstream. We just bridge the gap until upstream arrives.
+
+## 12. When Zig LTS changes (upgrade workflow)
+
+This project is locked to Zig 0.16.0. When the next stable Zig release ships, we evaluate whether to:
+
+- **A. Adopt new version as new LTS** (add `LTS-0.17` alongside, maintain both for transition)
+- **B. Stay on LTS-0.16** (mark new version "planned LTS" until adoption is approved)
+- **C. Skip version** (e.g. if 0.17 breaks too much, wait for 0.18)
+
+**Decision criteria for adopting a new LTS:**
+1. New Zig version is `stable` (not `-dev`/`-rc`) on ziglang.org download page
+2. All `zig build test` in all libs pass on the new version
+3. If API breaks: either fix in-place (minor cost) or add new LTS series (major cost)
+4. Document the migration cost in `CHANGELOG.md`
+
+**To refresh the gap audit when upgrading:**
+
+See `ZIG_STD_LIB_AUDIT.md` §6 ("How to refresh this audit") for the full workflow.
+
+TL;DR: use the installed std lib (no git clone), re-index 13 files into KB with new version label, re-verify 8 gaps, update doc. If a gap is now filled by std → deprecate the lib in essentials.
+
+**The audit is a living document, not a snapshot.** It must be re-verified on every LTS bump.

@@ -12,5 +12,14 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 - CI workflow stub: `.forgejo/workflows/test.yml` (Codeberg/Forgejo compatible)
 - `.gitattributes` for line endings
 
+### Changed
+- Re-verified `ZIG_STD_LIB_AUDIT.md` on installed Zig 0.16.0 std lib (was previously on 0.17-dev master). 8 gaps confirmed identical.
+- KB re-indexed with `zig-0.16-std:*` labels (replacing `zig-std:*` which pointed to deleted `zig-current/` checkout)
+- `PROJECT_PLAN.md §12` added: LTS upgrade workflow + audit refresh procedure
+
+### Removed
+- `D:/acko/zig-current/` (307 MB, was unused 0.17-dev checkout, now deleted)
+- `D:/acko/ZIG_STD_LIB_AUDIT.md` (duplicate at root, canonical copy in essentials/)
+
 ### Planned
 - `cli`, `toml`, `log`, `regex`, `websocket`, `watcher`, `tracing` (per PROJECT_PLAN.md §8)

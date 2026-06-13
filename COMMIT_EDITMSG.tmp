@@ -1,0 +1,37 @@
+Lock to LTS-0.16, remove 0.17-dev leftovers
+
+The project targets Zig 0.16.0 stable. Previous audit was done on
+0.17.0-dev (master checkout at D:/acko/zig-current/), creating a
+disconnect between:
+  - Code (built and tested on 0.16.0)
+  - LTS marker (0.16.0)
+  - Audit doc (0.17.0-dev)
+
+Resolve the disconnect:
+
+Audit:
+  - Re-verified all 8 gaps on installed Zig 0.16.0 std lib
+    (authoritative source, not a git checkout)
+  - 8 gaps identical across 0.16 and 0.17-dev — only path differs
+  - Updated header: "Audited against Zig 0.16.0 std lib"
+  - Section 5: KB source labels now `zig-0.16-std:*`
+  - Section 6: refresh procedure rewritten to use installed std lib,
+    not git clone (no zig-current, no disk waste)
+
+KB re-index:
+  - 13 std lib files re-indexed from
+    C:/Users/Lenovo/scoop/apps/zig/0.16.0/lib/std/
+  - 271 indexed sections
+  - Old `zig-std:*` labels (pointed to deleted checkout) abandoned
+
+PROJECT_PLAN.md:
+  - New §12 "When Zig LTS changes" — upgrade workflow with decision
+    criteria and audit refresh reference
+  - Removes implicit assumption that we follow master
+
+Cleanup:
+  - D:/acko/zig-current/ deleted (307 MB, 0.17-dev, unused)
+  - D:/acko/ZIG_STD_LIB_AUDIT.md deleted (duplicate at root;
+    canonical copy in essentials/)
+
+Tests: 23/23 still pass on Zig 0.16.0 / Windows x86_64.
