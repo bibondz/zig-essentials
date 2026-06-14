@@ -22,156 +22,134 @@
 //! ## Stability
 //!
 //! API frozen at 0.1.0. New features = new functions, not signature changes.
+//!
+//! ## Implementation note (v0.1.0)
+//!
+//! `Sink.writeFn` takes a pre-formatted `message: []const u8` rather than a
+//! `comptime fmt` + `fmt_args: anytype`. In Zig 0.16 a function pointer whose
+//! target has a `comptime` parameter or an `anytype` parameter is a generic
+//! function pointer, and the compiler rejects calling a generic function
+//! through a runtime pointer (error: "generic function being called must be
+//! comptime-known"). The global `current_sink` is a runtime `var`, so
+//! `current_sink.writeFn(...)` cannot be monomorphized unless `writeFn` is a
+//! plain non-generic function.
+//!
+//! To preserve the public log API (`comptime fmt` + args tuple), `logAtLevel`
+//! formats the message at the call site via `std.fmt.comptimePrint` and
+//! passes the resulting runtime `[]const u8` to the sink. This keeps the
+//! user-facing API unchanged while making runtime sink dispatch legal.
 
 const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
-// ---------- Public types ----------
-
 /// Log level. Lower priority messages filtered when min level is set higher.
-pub const Level = enum {
-    debug,
-    info,
-    warn,
-    err,
-};
+pub const Level = enum { debug, info, warn, err };
 
 /// A sink is the destination for log messages. Implement `writeFn` to handle
 /// each message. The `data` field is opaque user data (e.g., a Writer pointer).
-///
-/// `writeFn` is called once per log call. It's allowed to allocate. For
-/// high-throughput logging, the implementation should buffer and flush in a
-/// background thread (out of scope for v0.1.0).
 pub const Sink = struct {
-    writeFn: *const fn (
-        sink_data: ?*anyopaque,
-        level: Level,
-        scope: []const u8,
-        comptime fmt: []const u8,
-        fmt_args: anytype,
-    ) void,
+    writeFn: *const fn (sink_data: ?*anyopaque, level: Level, scope: []const u8, message: []const u8) void,
     data: ?*anyopaque,
 };
 
 /// Scoped logger. Created via `scoped(.scope_name)`.
-/// Each method logs at the corresponding level, tagged with the scope.
 pub const Logger = struct {
     scope: []const u8,
-
-    pub fn debug(self: Logger, comptime fmt: []const u8, args: anytype) void {
-        logAtLevel(.debug, self.scope, fmt, args);
-    }
-    pub fn info(self: Logger, comptime fmt: []const u8, args: anytype) void {
-        logAtLevel(.info, self.scope, fmt, args);
-    }
-    pub fn warn(self: Logger, comptime fmt: []const u8, args: anytype) void {
-        logAtLevel(.warn, self.scope, fmt, args);
-    }
-    pub fn err(self: Logger, comptime fmt: []const u8, args: anytype) void {
-        logAtLevel(.err, self.scope, fmt, args);
-    }
+    pub fn debug(self: Logger, comptime fmt: []const u8, args: anytype) void { logAtLevel(.debug, self.scope, fmt, args); }
+    pub fn info(self: Logger, comptime fmt: []const u8, args: anytype) void { logAtLevel(.info, self.scope, fmt, args); }
+    pub fn warn(self: Logger, comptime fmt: []const u8, args: anytype) void { logAtLevel(.warn, self.scope, fmt, args); }
+    pub fn err(self: Logger, comptime fmt: []const u8, args: anytype) void { logAtLevel(.err, self.scope, fmt, args); }
 };
 
-// ---------- Global state ----------
+fn textWriteFn(sink_data: ?*anyopaque, level: Level, scope: []const u8, message: []const u8) void {
+    const writer: *Io.Writer = @ptrCast(@alignCast(sink_data orelse return));
+    writer.print("{s}({s}): {s}\n", .{ @tagName(level), scope, message }) catch return;
+}
+
+fn jsonWriteFn(sink_data: ?*anyopaque, level: Level, scope: []const u8, message: []const u8) void {
+    const writer: *Io.Writer = @ptrCast(@alignCast(sink_data orelse return));
+    writer.writeAll("{\"level\":\"") catch return;
+    writer.writeAll(@tagName(level)) catch return;
+    writer.writeAll("\",\"scope\":\"") catch return;
+    writer.writeAll(scope) catch return;
+    writer.writeAll("\",\"message\":\"") catch return;
+    for (message) |c| {
+        switch (c) {
+            '\\' => writer.writeAll("\\\\") catch return,
+            '"' => writer.writeAll("\\\"") catch return,
+            else => writer.writeByte(c) catch return,
+        }
+    }
+    writer.writeAll("\"}\n") catch return;
+}
+
+fn stderrWriteFn(sink_data: ?*anyopaque, level: Level, scope: []const u8, message: []const u8) void {
+    _ = sink_data;
+    var buffer: [256]u8 = undefined;
+    const locked = std.debug.lockStderr(&buffer);
+    defer std.debug.unlockStderr();
+    const writer = &locked.file_writer.interface;
+    writer.print("{s}({s}): {s}\n", .{ @tagName(level), scope, message }) catch return;
+    writer.flush() catch return;
+}
 
 /// Current global sink. Default = text sink writing to stderr.
-var current_sink: Sink = textSinkToStderr();
+var current_sink: Sink = .{ .writeFn = stderrWriteFn, .data = null };
 
 /// Current minimum log level. Messages with `level < min_level` are dropped.
 var min_level: Level = .debug;
 
-// ---------- Public API: sink management ----------
-
 /// Replace the global sink with a custom one. Pass the result of
 /// `textSink(writer)` or `jsonSink(allocator, writer)`, or build your own.
-pub fn setSink(sink: Sink) void {
-    current_sink = sink;
-}
+pub fn setSink(sink: Sink) void { current_sink = sink; }
 
 /// Reset to the default sink (text to stderr).
-pub fn unsetSink() void {
-    current_sink = textSinkToStderr();
-}
+pub fn unsetSink() void { current_sink = .{ .writeFn = stderrWriteFn, .data = null }; }
 
 /// Create a text sink that writes formatted messages to `writer`.
 /// Format: `<level>(<scope>): <message>\n` (similar to `std.log` default).
 pub fn textSink(writer: *Io.Writer) Sink {
-    _ = writer;
-    // v0.1.0 stub
-    return .{ .writeFn = undefined, .data = null };
+    return .{ .writeFn = textWriteFn, .data = @ptrCast(writer) };
 }
 
 /// Create a JSON sink that writes one JSON object per line to `writer`.
 /// Format: `{"level":"info","scope":"myapp","message":"hello"}\n`.
 pub fn jsonSink(allocator: Allocator, writer: *Io.Writer) Sink {
     _ = allocator;
-    _ = writer;
-    // v0.1.0 stub
-    return .{ .writeFn = undefined, .data = null };
+    return .{ .writeFn = jsonWriteFn, .data = @ptrCast(writer) };
 }
 
 /// Default text sink writing to stderr.
 pub fn textSinkToStderr() Sink {
-    // v0.1.0 stub
-    return .{ .writeFn = undefined, .data = null };
+    return .{ .writeFn = stderrWriteFn, .data = null };
 }
-
-// ---------- Public API: level filter ----------
 
 /// Set the minimum log level. Messages with lower priority are dropped.
-pub fn setLevel(level: Level) void {
-    min_level = level;
-}
-
-// ---------- Public API: scoped logger ----------
+pub fn setLevel(level: Level) void { min_level = level; }
 
 /// Create a scoped logger. The scope is a comptime string used as the
 /// label in log output.
-///
-/// v0.1.0 uses string scope (not std.log's enum literal) to avoid
-/// Zig 0.16's strict enum literal typing. v0.2.0 may add std.log-compatible
-/// enum tag overload if there's demand.
-///
-/// Example:
-/// ```
-/// const my_log = log.scoped("myapp");
-/// my_log.info("starting up");
-/// ```
 pub fn scoped(comptime scope: []const u8) Logger {
-    _ = scope;
-    // v0.1.0 stub
-    return .{ .scope = "" };
+    return .{ .scope = scope };
 }
-
-// ---------- Public API: direct logging ----------
 
 /// Log a message at a specific level with a scope name. Most users should
 /// use `Logger.info(...)` etc. via `scoped(...)` instead.
 pub fn logAtLevel(level: Level, scope: []const u8, comptime fmt: []const u8, args: anytype) void {
-    _ = level;
-    _ = scope;
-    _ = fmt;
-    _ = args;
-    // v0.1.0 stub
+    if (@intFromEnum(level) < @intFromEnum(min_level)) return;
+    const message = std.fmt.comptimePrint(fmt, args);
+    current_sink.writeFn(current_sink.data, level, scope, message);
 }
 
 /// Top-level debug log. Drop-in for `std.log.debug`.
-pub fn debug(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void {
-    logAtLevel(.debug, scope, fmt, args);
-}
+pub fn debug(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void { logAtLevel(.debug, scope, fmt, args); }
 
 /// Top-level info log. Drop-in for `std.log.info`.
-pub fn info(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void {
-    logAtLevel(.info, scope, fmt, args);
-}
+pub fn info(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void { logAtLevel(.info, scope, fmt, args); }
 
 /// Top-level warn log. Drop-in for `std.log.warn`.
-pub fn warn(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void {
-    logAtLevel(.warn, scope, fmt, args);
-}
+pub fn warn(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void { logAtLevel(.warn, scope, fmt, args); }
 
 /// Top-level err log. Drop-in for `std.log.err`.
-pub fn err(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void {
-    logAtLevel(.err, scope, fmt, args);
-}
+pub fn err(comptime scope: []const u8, comptime fmt: []const u8, args: anytype) void { logAtLevel(.err, scope, fmt, args); }

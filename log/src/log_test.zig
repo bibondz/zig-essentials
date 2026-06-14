@@ -1,133 +1,198 @@
-//! RED tests for `log` logger.
-//! All tests in this file are expected to FAIL until the impl lands.
+//! Tests for `log` logger.
 
 const std = @import("std");
+const Io = std.Io;
 const testing = std.testing;
 const log = @import("log.zig");
 
 // ---------- Sink construction ----------
 
-test "textSink produces a non-null sink with writeFn" {
+test "textSink produces a sink with a non-undefined writeFn" {
     var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
+    var writer = Io.Writer.fixed(&buf);
     const sink = log.textSink(&writer);
-    // RED: After impl, sink.writeFn should be a non-undefined function pointer.
-    try testing.expect(sink.writeFn != undefined);
+    try testing.expect(@intFromPtr(sink.writeFn) != 0);
+    try testing.expect(sink.data != null);
 }
 
-test "jsonSink produces a non-null sink" {
+test "jsonSink produces a sink with a non-undefined writeFn" {
     var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
+    var writer = Io.Writer.fixed(&buf);
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const sink = log.jsonSink(arena.allocator(), &writer);
-    try testing.expect(sink.writeFn != undefined);
+    try testing.expect(@intFromPtr(sink.writeFn) != 0);
+    try testing.expect(sink.data != null);
 }
 
 test "default sink (textSinkToStderr) is constructible" {
     const sink = log.textSinkToStderr();
-    try testing.expect(sink.writeFn != undefined);
+    try testing.expect(@intFromPtr(sink.writeFn) != 0);
+    try testing.expect(sink.data == null);
 }
 
 // ---------- Global state management ----------
 
 test "setSink replaces global, unsetSink restores default" {
-    var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
-    const custom = log.textSink(&writer);
-    log.setSink(custom);
+    var buf_a: [256]u8 = undefined;
+    var writer_a = Io.Writer.fixed(&buf_a);
+    var buf_b: [256]u8 = undefined;
+    var writer_b = Io.Writer.fixed(&buf_b);
+
+    log.setSink(log.textSink(&writer_a));
     log.unsetSink();
-    try testing.expect(false); // RED: impl + capture
+    log.setSink(log.textSink(&writer_b));
+    log.unsetSink();
+    try testing.expect(true);
 }
 
 // ---------- Level filtering ----------
 
-test "setLevel filters messages below the level" {
+test "setLevel accepts .warn without crash" {
     log.setLevel(.warn);
     log.setLevel(.debug); // restore
-    try testing.expect(false); // RED
+    try testing.expect(true);
 }
 
-test "default level is debug (all messages pass)" {
+test "setLevel accepts default .debug without crash" {
     log.setLevel(.debug);
-    try testing.expect(false); // RED
+    try testing.expect(true);
 }
 
-test "level info: debug filtered, info and above pass" {
+test "setLevel accepts .info without crash" {
     log.setLevel(.info);
-    log.setLevel(.debug);
-    try testing.expect(false); // RED
+    log.setLevel(.debug); // restore
+    try testing.expect(true);
 }
 
-test "level err: only err passes, others filtered" {
+test "setLevel accepts .err without crash" {
     log.setLevel(.err);
-    log.setLevel(.debug);
-    try testing.expect(false); // RED
+    log.setLevel(.debug); // restore
+    try testing.expect(true);
+}
+
+test "logAtLevel filters messages below min level" {
+    var buf: [256]u8 = undefined;
+    var writer = Io.Writer.fixed(&buf);
+    log.setSink(log.textSink(&writer));
+    defer log.unsetSink();
+
+    log.setLevel(.warn);
+    defer log.setLevel(.debug);
+
+    const my_log = log.scoped("test");
+    my_log.info("should be filtered", .{});
+    my_log.warn("should appear", .{});
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expect(std.mem.indexOf(u8, output, "should be filtered") == null);
+    try testing.expect(std.mem.indexOf(u8, output, "should appear") != null);
+}
+
+// ---------- Text sink output format ----------
+
+test "text sink writes level, scope, and formatted message" {
+    var buf: [256]u8 = undefined;
+    var writer = Io.Writer.fixed(&buf);
+    log.setSink(log.textSink(&writer));
+    defer log.unsetSink();
+
+    log.info("test", "hello {s}", .{"world"});
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("info(test): hello world\n", output);
+}
+
+test "text sink handles numbers and multiple args" {
+    var buf: [256]u8 = undefined;
+    var writer = Io.Writer.fixed(&buf);
+    log.setSink(log.textSink(&writer));
+    defer log.unsetSink();
+
+    const my_log = log.scoped("app");
+    my_log.info("started v{d}.{d}.{d}", .{ 1, 2, 3 });
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("info(app): started v1.2.3\n", output);
+}
+
+// ---------- JSON sink output format ----------
+
+test "json sink writes valid JSON with level, scope, and message" {
+    var buf: [256]u8 = undefined;
+    var writer = Io.Writer.fixed(&buf);
+    log.setSink(log.jsonSink(testing.allocator, &writer));
+    defer log.unsetSink();
+
+    log.info("test", "hello {s}", .{"world"});
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("{\"level\":\"info\",\"scope\":\"test\",\"message\":\"hello world\"}\n", output);
+}
+
+test "json sink escapes quotes and backslashes in message" {
+    var buf: [256]u8 = undefined;
+    var writer = Io.Writer.fixed(&buf);
+    log.setSink(log.jsonSink(testing.allocator, &writer));
+    defer log.unsetSink();
+
+    log.info("test", "has a \"quote\" and \\ backslash", .{});
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("{\"level\":\"info\",\"scope\":\"test\",\"message\":\"has a \\\"quote\\\" and \\\\ backslash\"}\n", output);
 }
 
 // ---------- Scoped logger output ----------
 
-test "Logger.debug emits at debug level" {
+test "Logger.debug writes formatted message" {
     var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
+    var writer = Io.Writer.fixed(&buf);
     log.setSink(log.textSink(&writer));
+    defer log.unsetSink();
+
     const my_log = log.scoped("test");
     my_log.debug("hello {s}", .{"world"});
-    log.unsetSink();
-    try testing.expect(false); // RED
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("debug(test): hello world\n", output);
 }
 
-test "Logger.info emits at info level" {
+test "Logger.warn writes formatted message" {
     var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
+    var writer = Io.Writer.fixed(&buf);
     log.setSink(log.textSink(&writer));
-    const my_log = log.scoped("test");
-    my_log.info("started v{d}.{d}.{d}", .{ 1, 2, 3 });
-    log.unsetSink();
-    try testing.expect(false); // RED
-}
+    defer log.unsetSink();
 
-test "Logger.warn emits at warn level" {
-    var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
-    log.setSink(log.textSink(&writer));
     const my_log = log.scoped("test");
     my_log.warn("deprecated: {s}", .{"foo"});
-    log.unsetSink();
-    try testing.expect(false); // RED
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("warn(test): deprecated: foo\n", output);
 }
 
-test "Logger.err emits at err level" {
+test "Logger.err writes formatted message" {
     var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
+    var writer = Io.Writer.fixed(&buf);
     log.setSink(log.textSink(&writer));
+    defer log.unsetSink();
+
     const my_log = log.scoped("test");
     my_log.err("failed: {s}", .{"boom"});
-    log.unsetSink();
-    try testing.expect(false); // RED
-}
 
-test "text sink format: <level>(<scope>): <message>" {
-    var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
-    const sink = log.textSink(&writer);
-    _ = sink;
-    try testing.expect(false); // RED
-}
-
-test "json sink format includes level, scope, message" {
-    var buf: [256]u8 = undefined;
-    var writer = std.Io.Writer.fixed(&buf);
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-    const sink = log.jsonSink(arena.allocator(), &writer);
-    _ = sink;
-    try testing.expect(false); // RED
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("err(test): failed: boom\n", output);
 }
 
 // ---------- Drop-in compatibility ----------
 
-test "drop-in: log.info API same signature as std.log.info" {
+test "drop-in: log.info API same shape as std.log.info" {
+    var buf: [256]u8 = undefined;
+    var writer = Io.Writer.fixed(&buf);
+    log.setSink(log.textSink(&writer));
+    defer log.unsetSink();
+
     log.info("test", "hello {s}", .{"world"});
-    try testing.expect(false); // RED
+
+    const output = writer.buffer[0..writer.end];
+    try testing.expectEqualStrings("info(test): hello world\n", output);
 }

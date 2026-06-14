@@ -8,7 +8,12 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 
 ### Added
 - `toml` v0.1.0 (TOML 1.0 parser; 24/24 tests)
-- `log` v0.1.0-dev design + 15 RED tests (impl in next session)
+- `log` v0.1.0 (structured logger; 17/17 tests)
+  - Drop-in compatible with `std.log`
+  - Pluggable sinks: text, JSON, stderr
+  - Per-call level (`debug`/`info`/`warn`/`err`) and scope
+  - Runtime level filtering via `setLevel`
+  - **Breaking change**: `Sink.writeFn` signature changed from `*const fn(..., comptime fmt, fmt_args: anytype)` to `*const fn(..., message: []const u8)`. Custom sink implementers must update their `writeFn`.
 
 ### Released
 - `uuid` v0.1.0 (RFC 4122/9562 v4 + v7At, parse, format; 23/23 tests)
