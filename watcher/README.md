@@ -1,6 +1,6 @@
 # `watcher` — cross-platform filesystem watcher
 
-> **Status:** planned (Tier 3 #7, see `../../ZIG_STD_LIB_AUDIT.md`)
+> **Status:** v0.1.0-dev (in progress — stub + 11 RED tests)
 
 ## Why
 

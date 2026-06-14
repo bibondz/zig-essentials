@@ -1,0 +1,13 @@
+.{
+    .name = .essentials_watcher,
+    .version = "0.1.0-dev",
+    .fingerprint = 0x6ca91f02733bcfcf,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "README.md",
+    },
+}

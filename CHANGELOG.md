@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com)
   - Per-call level (`debug`/`info`/`warn`/`err`) and scope
   - Runtime level filtering via `setLevel`
   - **Breaking change**: `Sink.writeFn` signature changed from `*const fn(..., comptime fmt, fmt_args: anytype)` to `*const fn(..., message: []const u8)`. Custom sink implementers must update their `writeFn`.
+- `watcher` v0.1.0-dev (filesystem watcher; 11 RED tests — stub + platform scaffolding)
 
 ### Released
 - `uuid` v0.1.0 (RFC 4122/9562 v4 + v7At, parse, format; 23/23 tests)
@@ -32,4 +33,6 @@ Format: [Keep a Changelog](https://keepachangelog.com)
 - Windows x86_64 (cross-OS testing pending CI)
 
 ### Planned
-- `regex`, `websocket`, `watcher`, `tracing` (per PROJECT_PLAN.md §8)
+- `regex` (PCRE subset, NFA-based; Tier 2 #5)
+- `websocket` (RFC 6455 client + server; Tier 3 #6)
+- `tracing` (OpenTelemetry-style spans; Tier 3 #8)
